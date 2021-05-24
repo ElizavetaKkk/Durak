@@ -34,7 +34,7 @@ public class GameRound {
         } while (trumpID == R.drawable.s14 || trumpID == R.drawable.h14 ||
                         trumpID == R.drawable.d14 || trumpID == R.drawable.c14);
         trump = context.getResources().getResourceEntryName(trumpID).substring(0, 1);
-        remainingCards.remove(trumpInd);
+        remainingCards.remove(trumpInd); remainingCards.add(trumpID);
     }
 
     public ArrayList<Integer> firstSixCards() {
@@ -77,8 +77,7 @@ public class GameRound {
                 (!playerCard.substring(0, 1).equals(enemyCard.substring(0, 1)) || !isPlayerCardBigger)) {
             return false;
         }
-        if (isEnemyCardTrump && (!isPlayerCardTrump || !isPlayerCardBigger)) return false;
-        return true;
+        return !isEnemyCardTrump || (isPlayerCardTrump && isPlayerCardBigger);
     }
 
     public Integer computerMove(Integer playerCard) {
@@ -87,5 +86,11 @@ public class GameRound {
             if (checkCardSelection(playerCard, card)) return card;
         }
         return null;
+    }
+
+    public boolean sameWeight(Integer card1, Integer card2) {
+        String weight1 = context.getResources().getResourceEntryName(card1).substring(1);
+        String weight2 = context.getResources().getResourceEntryName(card2).substring(1);
+        return weight1.equals(weight2);
     }
 }

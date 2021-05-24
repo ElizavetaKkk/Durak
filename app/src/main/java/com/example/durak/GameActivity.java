@@ -106,11 +106,7 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
                     toast.show();
                 } else {
                     if (adapterActive.size() != 0) {
-                        String c1 = getResources().
-                                getResourceEntryName(adapterActive.selectCard(0)).substring(1);
-                        String c2 = getResources().
-                                getResourceEntryName(card).substring(1);
-                        if (!c1.equals(c2)) {
+                        if (!gameRound.sameWeight(adapterActive.selectCard(0), card)) {
                             Toast toast = Toast.makeText(
                                     this,
                                     "Нельзя выбирать карты разных достоинств",

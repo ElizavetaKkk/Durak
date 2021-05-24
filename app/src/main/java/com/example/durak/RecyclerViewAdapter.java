@@ -114,8 +114,6 @@ public class RecyclerViewAdapter extends RecyclerView.Adapter<RecyclerViewAdapte
         for (int i = 0; i < cards.size(); i++) addCard(cards.get(i));
     }
 
-
-
     ArrayList<Integer> getAllItems() {
         return mData;
     }
