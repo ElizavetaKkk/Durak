@@ -20,7 +20,7 @@ public class GameRound {
     GameRound(Context context, ArrayList<Integer> remainingCards) {
         this.context = context;
         this.remainingCards = remainingCards;
-        for (int i = 0; i < remainingCards.size() / 2; i++) {
+        for (int i = 0; i < remainingCards.size(); i++) {
             int ind = (int) (Math.random() * remainingCards.size());
             Integer t = remainingCards.get(i);
             remainingCards.set(i, remainingCards.get(ind));

@@ -73,7 +73,7 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
         if (firstMove == 0) isPlayerMoveFirst = true;
         else {
             isPlayerMoveFirst = false;
-            start();
+            computerStart();
         }
     }
 
@@ -157,10 +157,10 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
         }
     }
 
-    public void start() {
+    public void computerStart() {
         ArrayList<Integer> cardsFromComputer = gameRound.computerFirstMove();
         for (int i = 0; i < cardsFromComputer.size(); i++) {
-            adapterActive.addCard(cardsFromComputer.get(i));
+            if (adapter.size() > i) adapterActive.addCard(cardsFromComputer.get(i));
         }
         String counting = "У Противника - " + gameRound.computer.size() +
                 ", Осталось - " + gameRound.remainingCards.size();
@@ -176,17 +176,7 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
     }
 
     public void playerContinues(View view) throws InterruptedException {
-        if (adapter.size() == 0) {
-            Toast toast = Toast.makeText(
-                    this,
-                    "Поздравляем с победой!",
-                    Toast.LENGTH_SHORT
-            );
-            toast.show();
-            Thread.sleep(2000);
-            Intent intent = new Intent(GameActivity.this, MainActivity.class);
-            startActivity(intent);
-        }
+        loosingOrWinning();
         buttonContinue.setColorFilter(
                 Color.rgb(123, 123, 123), android.graphics.PorterDuff.Mode.MULTIPLY
         );
@@ -238,17 +228,23 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
         String counting = "У Противника - " + gameRound.computer.size() +
                 ", Осталось - " + gameRound.remainingCards.size();
         textView.setText(counting);
-        if (gameRound.computer.size() == 0) {
-            Toast toast = Toast.makeText(
-                    this,
-                    "К сожалению, вы проиграли",
-                    Toast.LENGTH_SHORT
-            );
-            toast.show();
-            Thread.sleep(2000);
-            Intent intent = new Intent(GameActivity.this, MainActivity.class);
-            startActivity(intent);
+        loosingOrWinning();
+        computerStart();
+    }
+
+    public void loosingOrWinning() throws InterruptedException {
+        if (adapter.size() == 0) {
+            showToast("Поздравляем с победой!");
+        } else if (gameRound.computer.size() == 0) {
+            showToast("К сожалению, вы проиграли");
         }
-        start();
+    }
+
+    public void showToast(String text) throws InterruptedException {
+        Toast toast = Toast.makeText(this, text, Toast.LENGTH_SHORT);
+        toast.show();
+        Thread.sleep(2000);
+        Intent intent = new Intent(GameActivity.this, MainActivity.class);
+        startActivity(intent);
     }
 }
