@@ -5,7 +5,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.content.Intent;
-import android.content.res.TypedArray;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.View;
@@ -15,6 +14,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 
 public class GameActivity extends AppCompatActivity implements RecyclerViewAdapter.ItemClickListener {
 
@@ -22,12 +22,14 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
     private RecyclerViewAdapter adapterActive;
     private GameRound gameRound;
     private ImageView buttonContinue;
+    private ImageView imageViewTrump;
     private TextView textView;
-    private boolean isPlayerMoveFirst;
     private ArrayList<Integer> activeCards;
     private View selectedCardView;
+    private Integer selectedCard;
     private int selectedCardPos;
     private int padding;
+    private boolean hasTrumpBeenRemoved;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,22 +41,22 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
         LinearLayoutManager layoutManagerActive = new LinearLayoutManager(
                 this, LinearLayoutManager.HORIZONTAL, false
         );
-        TypedArray cards = getResources().obtainTypedArray(R.array.listOfCards);
-        ArrayList<Integer> remainingCards = new ArrayList<>();
-        for (int i = 0; i < cards.length(); i++) {
-            remainingCards.add(cards.getResourceId(i, -1));
-        }
-        cards.recycle();
         padding = (int) (5 * getResources().getDisplayMetrics().density + 0.5f);
         buttonContinue = findViewById(R.id.imageViewContinue);
         textView = findViewById(R.id.textView);
         activeCards = new ArrayList<>();
 
-        gameRound = new GameRound(this, remainingCards);
-
+        gameRound = new GameRound();
         RecyclerView recyclerView = findViewById(R.id.recyclerView);
         recyclerView.setLayoutManager(layoutManager);
-        adapter = new RecyclerViewAdapter(this, gameRound.firstSixCards(), 0);
+        ArrayList<String> playerCards = gameRound.humCards();
+        ArrayList<Integer> playerCardsImg = new ArrayList<>();
+        for (int i = 0; i < playerCards.size(); i++) {
+            playerCardsImg.add(
+                    getResources().getIdentifier(playerCards.get(i), "drawable", getPackageName())
+            );
+        }
+        adapter = new RecyclerViewAdapter(this, playerCardsImg, 0);
         adapter.setClickListener(this);
         recyclerView.setAdapter(adapter);
 
@@ -64,17 +66,16 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
         adapterActive.setClickListener(this);
         recyclerViewActive.setAdapter(adapterActive);
 
-        ImageView imageViewTrump = findViewById(R.id.imageViewTrump);
-        imageViewTrump.setImageResource(gameRound.trumpID);
-        String counting = "У Противника - " + gameRound.computer.size() +
-                ", Осталось - " + gameRound.remainingCards.size();
+        imageViewTrump = findViewById(R.id.imageViewTrump);
+        imageViewTrump.setImageResource(
+                getResources().getIdentifier(gameRound.getTrump(), "drawable", getPackageName())
+        );
+        hasTrumpBeenRemoved = false;
+        String counting = "У Противника - " + gameRound.compSize() +
+                ", Осталось - " + gameRound.remainingCardsSize();
         textView.setText(counting);
-        int firstMove = (int) (Math.random() * 2);
-        if (firstMove == 0) isPlayerMoveFirst = true;
-        else {
-            isPlayerMoveFirst = false;
-            computerStart();
-        }
+        if (!gameRound.isHumAttacker()) computerStart();
+        else lockButton();
     }
 
     @Override
@@ -89,24 +90,25 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
 
     public void onClickPlayerCards(View view, int position) {
         Integer card = adapter.selectCard(position);
-        if (gameRound.selectedCard != card) {
-            if (gameRound.selectedCard != null) {
+        if (!selectedCard.equals(card)) {
+            if (selectedCard != null) {
                 selectedCardView.setPadding(padding, padding, padding, padding);
             }
-            gameRound.selectedCard = card;
-            selectedCardView = view;
-            selectedCardPos = position;
+            selectedCard = card; selectedCardView = view; selectedCardPos = position;
             view.setPadding(0, 0, 0, 0);
         } else {
-            if (isPlayerMoveFirst) {
+            if (gameRound.isHumAttacker()) {
                 if (adapterActive.size() > 1) {
                     Toast toast = Toast.makeText(
                             this, "Нельзя выбирать больше 2 карт за раз", Toast.LENGTH_SHORT
                     );
                     toast.show();
                 } else {
+                    String cardName = getResources().getResourceEntryName(card);
                     if (adapterActive.size() != 0) {
-                        if (!gameRound.sameWeight(adapterActive.selectCard(0), card)) {
+                        if (!gameRound.checkCardsWeight(
+                                getResources().getResourceEntryName(adapterActive.selectCard(0)),
+                                cardName)) {
                             Toast toast = Toast.makeText(
                                     this,
                                     "Нельзя выбирать карты разных достоинств",
@@ -116,33 +118,39 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
                             return;
                         }
                     }
+                    gameRound.addActiveHumCard(cardName);
                     adapterActive.addCard(card);
                     adapter.removeCard(position);
                     view.setPadding(padding, padding, padding, padding);
-                    gameRound.selectedCard = null;
+                    selectedCard = null;
                     selectedCardView = null;
                     selectedCardPos = -1;
-                    buttonContinue.clearColorFilter();
-                    buttonContinue.setClickable(true);
+                    unlockButton();
                 }
             }
         }
     }
 
     public void onClickActiveCards(View view, int position) {
-        if (isPlayerMoveFirst) {
+        if (gameRound.isHumAttacker()) {
             Integer card = adapterActive.selectCard(position);
             adapterActive.removeCard(position);
             adapter.addCard(card);
+            gameRound.removeActiveHumCard(getResources().getResourceEntryName(card));
+            if (gameRound.activeHumCardsSize() == 0) lockButton();
         } else {
-            if (gameRound.selectedCard != null) {
-                if (gameRound.checkCardSelection(adapterActive.selectCard(position), gameRound.selectedCard)) {
+            if (selectedCard != null) {
+                String selectedCardName = getResources().getResourceEntryName(selectedCard);
+                if (gameRound.checkCardSelection(
+                        getResources().getResourceEntryName(adapterActive.selectCard(position)),
+                        selectedCardName)) {
+                    gameRound.addActiveHumCard(selectedCardName);
                     selectedCardView.setPadding(padding, padding, padding, padding);
                     adapter.removeCard(selectedCardPos);
-                    adapterActive.addCardTop(position, gameRound.selectedCard);
-                    activeCards.add(gameRound.selectedCard);
+                    adapterActive.addCardTop(position, selectedCard);
+                    activeCards.add(selectedCard);
                     view.setClickable(false);
-                    gameRound.selectedCard = null;
+                    selectedCard = null;
                     selectedCardView = null;
                     selectedCardPos = -1;
                 } else {
@@ -158,93 +166,109 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
     }
 
     public void computerStart() {
-        ArrayList<Integer> cardsFromComputer = gameRound.computerFirstMove();
-        for (int i = 0; i < cardsFromComputer.size(); i++) {
-            if (adapter.size() > i) adapterActive.addCard(cardsFromComputer.get(i));
+        gameRound.computerAttacks();
+        ArrayList<String> activeCompCards = gameRound.getActiveCompCards();
+        for (int i = 0; i < activeCompCards.size(); i++) {
+            if (adapter.size() > i) {
+                adapterActive.addCard(getResources().getIdentifier(activeCompCards.get(i),
+                                "drawable", getPackageName()));
+            }
         }
-        String counting = "У Противника - " + gameRound.computer.size() +
-                ", Осталось - " + gameRound.remainingCards.size();
+        checkTrumpCard();
+        String counting = "У Противника - " + gameRound.compSize() +
+                ", Осталось - " + gameRound.remainingCardsSize();
         textView.setText(counting);
     }
 
     public void onClickContinue(View view) throws InterruptedException {
-        if (!isPlayerMoveFirst) {
-            playerContinues(view);
-        } else {
+        if (gameRound.isHumAttacker()) {
+            gameRound.humAttacks();
             compContinues(view);
         }
+        else playerContinues(view);
     }
 
     public void playerContinues(View view) throws InterruptedException {
+        ArrayList<Integer> compActiveCards = adapterActive.getAllItems();
+        if (activeCards.size() != compActiveCards.size()) {
+            gameRound.humPickUpCards();
+        } else gameRound.humDefended();
+        adapterActive.removeAll();
         loosingOrWinning();
+        adapter.removeAll();
+        ArrayList<String> humCards = gameRound.humCards();
+        for (int i = 0; i < humCards.size(); i++) {
+            adapter.addCard(getResources().getIdentifier(humCards.get(i),
+                    "drawable", getPackageName()));
+        }
+        checkTrumpCard();
+        String counting = "У Противника - " + gameRound.compSize() +
+                ", Осталось - " + gameRound.remainingCardsSize();
+        textView.setText(counting);
+        activeCards = new ArrayList<>();
+        if (!gameRound.isHumAttacker()) computerStart();
+    }
+
+    public void compContinues(View view) throws InterruptedException {
+        adapterActive.removeAll();
+        activeCards = new ArrayList<>();
+        checkTrumpCard();
+        String counting = "У Противника - " + gameRound.compSize() +
+                ", Осталось - " + gameRound.remainingCardsSize();
+        textView.setText(counting);
+        loosingOrWinning();
+        adapter.removeAll();
+        ArrayList<String> humCards = gameRound.humCards();
+        for (int i = 0; i < humCards.size(); i++) {
+            adapter.addCard(getResources().getIdentifier(humCards.get(i),
+                    "drawable", getPackageName()));
+        }
+        if (!gameRound.isHumAttacker()) computerStart();
+        else lockButton();
+    }
+
+    private void loosingOrWinning() throws InterruptedException {
+        int res = gameRound.whoWon();
+        switch (res) {
+            case 0:
+                showToast("Ничья");
+                break;
+            case 1:
+                showToast("Вы победили!");
+                break;
+            case 2:
+                showToast("Вы проиграли");
+                break;
+        }
+    }
+
+    private void showToast(String text) throws InterruptedException {
+        Toast toast = Toast.makeText(this, text, Toast.LENGTH_SHORT);
+        toast.show();
+        Thread.sleep(1500);
+        finish();
+    }
+
+    private void lockButton() {
         buttonContinue.setColorFilter(
                 Color.rgb(123, 123, 123), android.graphics.PorterDuff.Mode.MULTIPLY
         );
         buttonContinue.setClickable(false);
-        ArrayList<Integer> compActiveCards = adapterActive.getAllItems();
-        if (activeCards.size() != compActiveCards.size()) {
-            adapter.addAll(activeCards);
-            adapter.addAll(compActiveCards);
-        }
-        adapterActive.removeAll();
-        int size = adapter.size();
-        for (int i = 0; i < 6 - size; i++) {
-            if (!gameRound.remainingCards.isEmpty()) {
-                adapter.addCard(gameRound.remainingCards.get(0));
-                gameRound.remainingCards.remove(0);
-            }
-        }
-        String counting = "У Противника - " + gameRound.computer.size() +
-                ", Осталось - " + gameRound.remainingCards.size();
-        textView.setText(counting);
-        activeCards = new ArrayList<>();
-        isPlayerMoveFirst = true;
     }
 
-    public void compContinues(View view) throws InterruptedException {
-        ArrayList<Integer> playerCards = adapterActive.getAllItems();
-        for (int i = 0; i < playerCards.size(); i++) {
-            Integer card = gameRound.computerMove(playerCards.get(i));
-            if (card != null) {
-                activeCards.add(card);
-                adapterActive.addCardTop(i, card);
-                gameRound.computer.remove(card);
-            } else {
-                gameRound.computer.addAll(playerCards);
-                gameRound.computer.addAll(activeCards);
-                break;
-            }
-        }
-        adapterActive.removeAll();
-        int size = gameRound.computer.size();
-        for (int i = 0; i < 6 - size; i++) {
-            if (!gameRound.remainingCards.isEmpty()) {
-                gameRound.computer.add(gameRound.remainingCards.get(0));
-                gameRound.remainingCards.remove(0);
-            }
-        }
-        activeCards = new ArrayList<>();
-        isPlayerMoveFirst = false;
-        String counting = "У Противника - " + gameRound.computer.size() +
-                ", Осталось - " + gameRound.remainingCards.size();
-        textView.setText(counting);
-        loosingOrWinning();
-        computerStart();
+    private void unlockButton() {
+        buttonContinue.clearColorFilter();
+        buttonContinue.setClickable(true);
     }
 
-    public void loosingOrWinning() throws InterruptedException {
-        if (adapter.size() == 0) {
-            showToast("Поздравляем с победой!");
-        } else if (gameRound.computer.size() == 0) {
-            showToast("К сожалению, вы проиграли");
-        }
+    public void onClickExit(View view) {
+        finish();
     }
 
-    public void showToast(String text) throws InterruptedException {
-        Toast toast = Toast.makeText(this, text, Toast.LENGTH_SHORT);
-        toast.show();
-        Thread.sleep(2000);
-        Intent intent = new Intent(GameActivity.this, MainActivity.class);
-        startActivity(intent);
+    private void checkTrumpCard() {
+        if (!hasTrumpBeenRemoved && gameRound.remainingCardsSize() == 0) {
+            imageViewTrump.setImageDrawable(null);
+            hasTrumpBeenRemoved = true;
+        }
     }
 }
