@@ -90,7 +90,7 @@ public class GameActivity extends AppCompatActivity implements RecyclerViewAdapt
 
     public void onClickPlayerCards(View view, int position) {
         Integer card = adapter.selectCard(position);
-        if (!selectedCard.equals(card)) {
+        if (selectedCard != card) {
             if (selectedCard != null) {
                 selectedCardView.setPadding(padding, padding, padding, padding);
             }
